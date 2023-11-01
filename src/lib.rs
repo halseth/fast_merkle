@@ -11,6 +11,7 @@ pub struct Tree {
     size: usize,
     leaves: Vec<Vec<u8>>,
     tree: Vec<[u8; 32]>,
+    updates: VecDeque<usize>,
 }
 
 #[derive(Debug)]
@@ -35,11 +36,18 @@ impl Tree {
         }
         let tree: Vec<[u8; 32]> = vec![[0; 32]; 2*size-1];
         let leaves = vec![vec![]; size];
+        let updates: VecDeque<usize> = VecDeque::new();
         let mut s = Self {
             size,
             leaves,
             tree,
+            updates,
         };
+
+        // update all leaves.
+        for i in 0..size {
+            s.set_leaf(i, vec![]);
+        }
 
         s.commit();
         Ok(s)
@@ -47,54 +55,52 @@ impl Tree {
 
     pub fn set_leaf(&mut self, i: usize, val: Vec<u8>) {
         self.leaves[i] = val;
+        let node= self.size-1+i;
+        self.updates.push_back(node);
+        println!("pushing back leaf={} node={}", i, node);
     }
 
     pub fn commit(&mut self) -> [u8; 32]{
-        // Keep track of indexes to update.
-        let mut updates: VecDeque<usize> = VecDeque::new();
-
-        // Iterate leaves.
-        for (i, leaf) in self.leaves.iter().enumerate() {
-            let mut hasher = Sha256::new();
-            hasher.update(leaf);
-            let hash = hasher.finalize();
-            let hash_array: [u8; 32] = hash.into();
-            let node= self.size-1+i;
-            self.tree[node] = hash_array;
-
-            println!("leaf {}={:x?} hash={:x?}", i, leaf, hash_array);
-
-            // Push parent node to updates.
-            if i%2 == 0 {
-                updates.push_back((node-1)/2);
-            }
-        }
 
         // Iterate updates.
         let mut last_update: usize = 0;
-        while !updates.is_empty() {
-            let node = updates.pop_front().unwrap();
+        while !self.updates.is_empty() {
+            let node = self.updates.pop_front().unwrap();
+
+            println!("node to update={}", node);
 
             // Skip double updates in case both children were updated.
             if node == last_update {
+                println!("skippint double node update={}", node);
                 continue;
             }
 
-            let child0 = self.tree[2*node+1];
-            let child1 = self.tree[2*node+2];
-
             let mut hasher = Sha256::new();
-            hasher.update(child0);
-            hasher.update(child1);
+            // Leaves start at index size-1;
+            if node < self.size-1 {
+                let c0 = 2 * node + 1;
+                let c1 = 2 * node + 2;
+                println!("node {} child0={} child1={}", node, c0, c1);
+
+                let child0 = self.tree[c0];
+                let child1 = self.tree[c1];
+                hasher.update(child0);
+                hasher.update(child1);
+            } else {
+                let leaf = &self.leaves[node+1-self.size];
+                hasher.update(leaf);
+            }
+
             let hash = hasher.finalize();
             let hash_array: [u8; 32] = hash.into();
+            println!("node {} hash={:x?}", node, hash_array);
 
             self.tree[node] = hash_array;
             last_update = node;
 
             // Push parent node to updates.
             if node != 0 {
-                updates.push_back((node- 1) / 2);
+                self.updates.push_back((node- 1) / 2);
             }
         }
 
