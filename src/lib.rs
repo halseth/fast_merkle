@@ -66,7 +66,7 @@ impl Tree {
 
             // Push parent node to updates.
             if i%2 == 0 {
-                updates.push_back((node-1)/2)
+                updates.push_back((node-1)/2);
             }
         }
 
@@ -94,7 +94,7 @@ impl Tree {
 
             // Push parent node to updates.
             if node != 0 {
-                updates.push_back((node- 1) / 2)
+                updates.push_back((node- 1) / 2);
             }
         }
 
