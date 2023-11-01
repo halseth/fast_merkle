@@ -8,7 +8,7 @@ pub fn add(left: usize, right: usize) -> usize {
 
 pub struct Tree {
     leaves: Vec<Vec<u8>>,
-    tree: Vec<[u8;32]>,
+    tree: Vec<[u8; 32]>,
 }
 
 #[derive(Debug)]
@@ -22,20 +22,20 @@ impl fmt::Display for SizeError {
     }
 }
 
-impl Error for SizeError{}
+impl Error for SizeError {}
 
 impl Tree {
-   pub fn new(size: usize) -> Result<Self, SizeError> {
-       if !usize::is_power_of_two(size) {
-           return Err(SizeError{
-               message: "not power of two".to_string(),
-           })
-       }
-       Ok(Self {
-           leaves: vec![vec![]; size],
-           tree: vec![],
-       })
-   }
+    pub fn new(size: usize) -> Result<Self, SizeError> {
+        if !usize::is_power_of_two(size) {
+            return Err(SizeError {
+                message: "not power of two".to_string(),
+            });
+        }
+        Ok(Self {
+            leaves: vec![vec![]; size],
+            tree: vec![],
+        })
+    }
 
     pub fn root(&self) -> [u8; 32] {
         return [0; 32];
@@ -44,8 +44,8 @@ impl Tree {
 
 #[cfg(test)]
 mod tests {
-    use std::panic::panic_any;
     use super::*;
+    use std::panic::panic_any;
 
     #[test]
     fn it_works() {
@@ -57,18 +57,18 @@ mod tests {
     fn invalid_size() {
         let tree = Tree::new(5);
         match tree {
-            Err(_)=> {},
+            Err(_) => {}
             _ => panic!("expected size error"),
         }
     }
 
-#[test]
-fn new() {
-    let tree = Tree::new(4).unwrap();
-    assert_eq!(tree.leaves.len(), 4);
+    #[test]
+    fn new() {
+        let tree = Tree::new(4).unwrap();
+        assert_eq!(tree.leaves.len(), 4);
 
-    let root = tree.root();
-    let exp: [u8; 32] = [0; 32];
-    assert_eq!(root, exp);
-}
+        let root = tree.root();
+        let exp: [u8; 32] = [0; 32];
+        assert_eq!(root, exp);
+    }
 }
