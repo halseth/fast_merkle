@@ -45,6 +45,10 @@ impl Tree {
         Ok(s)
     }
 
+    pub fn set_leaf(&mut self, i: usize, val: Vec<u8>) {
+        self.leaves[i] = val;
+    }
+
     pub fn commit(&mut self) -> [u8; 32]{
         // Keep track of indexes to update.
         let mut updates: VecDeque<usize> = VecDeque::new();
@@ -138,5 +142,25 @@ mod tests {
 
         let root = tree.root();
         assert_eq!(root, zero_root);
+    }
+
+    #[test]
+    fn alter() {
+        let size = 4;
+        let mut tree = Tree::new(size).unwrap();
+        let zero_root_str = "5310a330e8f970388503c73349d80b45cd764db615f1bced2801dcd4524a2ff4";
+        let zero_root: [u8; 32] = hex::decode(zero_root_str).unwrap().try_into().unwrap();
+        let root = tree.root();
+        assert_eq!(root, zero_root);
+
+        let new_leaf: Vec<u8> = vec![1,1,1];
+
+        tree.set_leaf(0, new_leaf);
+        let new_root = tree.commit();
+
+        let exp_root_str = "05c04dbe678c7af523966fab4b8b97f7fc61a431325cb08e232a5f0f448bc9e1";
+        let exp_root: [u8; 32] = hex::decode(exp_root_str).unwrap().try_into().unwrap();
+
+        assert_eq!(new_root, exp_root);
     }
 }
