@@ -169,4 +169,26 @@ mod tests {
 
         assert_eq!(new_root, exp_root);
     }
+
+    #[test]
+    fn double_alter() {
+        let size = 4;
+        let mut tree = Tree::new(size).unwrap();
+        let zero_root_str = "5310a330e8f970388503c73349d80b45cd764db615f1bced2801dcd4524a2ff4";
+        let zero_root: [u8; 32] = hex::decode(zero_root_str).unwrap().try_into().unwrap();
+        let root = tree.root();
+        assert_eq!(root, zero_root);
+
+        let new_leaf: Vec<u8> = vec![1,1,1];
+        let new_leaf2: Vec<u8> = vec![2,2,2];
+
+        tree.set_leaf(0, new_leaf);
+        tree.set_leaf(3, new_leaf2);
+        let new_root = tree.commit();
+
+        let exp_root_str = "afafdad52f016467f2e29867d3adde09133708ba0b4dab04a8cd538b78cc487d";
+        let exp_root: [u8; 32] = hex::decode(exp_root_str).unwrap().try_into().unwrap();
+
+        assert_eq!(new_root, exp_root);
+    }
 }
