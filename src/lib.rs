@@ -57,7 +57,6 @@ impl Tree {
         self.leaves[i] = val;
         let node= self.size-1+i;
         self.updates.push_back(node);
-        println!("pushing back leaf={} node={}", i, node);
     }
 
     pub fn commit(&mut self) -> [u8; 32]{
@@ -67,11 +66,8 @@ impl Tree {
         while !self.updates.is_empty() {
             let node = self.updates.pop_front().unwrap();
 
-            println!("node to update={}", node);
-
             // Skip double updates in case both children were updated.
             if node == last_update {
-                println!("skippint double node update={}", node);
                 continue;
             }
 
@@ -80,7 +76,6 @@ impl Tree {
             if node < self.size-1 {
                 let c0 = 2 * node + 1;
                 let c1 = 2 * node + 2;
-                println!("node {} child0={} child1={}", node, c0, c1);
 
                 let child0 = self.tree[c0];
                 let child1 = self.tree[c1];
@@ -93,7 +88,6 @@ impl Tree {
 
             let hash = hasher.finalize();
             let hash_array: [u8; 32] = hash.into();
-            println!("node {} hash={:x?}", node, hash_array);
 
             self.tree[node] = hash_array;
             last_update = node;
