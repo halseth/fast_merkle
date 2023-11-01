@@ -35,7 +35,7 @@ impl Tree {
             });
         }
         let tree: Vec<[u8; 32]> = vec![[0; 32]; 2*size-1];
-        let leaves = vec![vec![]; size];
+        let leaves = vec![vec![1]; size]; // non-empty vector such that we will alter the leaf below.
         let updates: VecDeque<usize> = VecDeque::new();
         let mut s = Self {
             size,
@@ -54,8 +54,14 @@ impl Tree {
     }
 
     pub fn set_leaf(&mut self, i: usize, val: Vec<u8>) {
+        // First check if changes at all.
+        let pre = self.leaves[i].clone();
+        if pre == val {
+            return
+        }
+
         self.leaves[i] = val;
-        let node= self.size-1+i;
+        let node = self.size - 1 + i;
         self.updates.push_back(node);
     }
 
