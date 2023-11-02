@@ -1,7 +1,7 @@
+use sha2::{Digest, Sha256};
 use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt;
-use sha2::{Sha256, Digest};
 
 pub fn add(left: usize, right: usize) -> usize {
     left + right
@@ -34,7 +34,7 @@ impl Tree {
                 message: "not power of two".to_string(),
             });
         }
-        let tree: Vec<[u8; 32]> = vec![[0; 32]; 2*size-1];
+        let tree: Vec<[u8; 32]> = vec![[0; 32]; 2 * size - 1];
         let leaves = vec![vec![1]; size]; // non-empty vector such that we will alter the leaf below.
         let updates: VecDeque<usize> = VecDeque::new();
         let mut s = Self {
@@ -57,7 +57,7 @@ impl Tree {
         // First check if changes at all.
         let pre = self.leaves[i].clone();
         if pre == val {
-            return
+            return;
         }
 
         self.leaves[i] = val;
@@ -65,8 +65,7 @@ impl Tree {
         self.updates.push_back(node);
     }
 
-    pub fn commit(&mut self) -> [u8; 32]{
-
+    pub fn commit(&mut self) -> [u8; 32] {
         // Iterate updates.
         let mut last_update: usize = 0;
         while !self.updates.is_empty() {
@@ -79,7 +78,7 @@ impl Tree {
 
             let mut hasher = Sha256::new();
             // Leaves start at index size-1;
-            if node < self.size-1 {
+            if node < self.size - 1 {
                 let c0 = 2 * node + 1;
                 let c1 = 2 * node + 2;
 
@@ -88,7 +87,7 @@ impl Tree {
                 hasher.update(child0);
                 hasher.update(child1);
             } else {
-                let leaf = &self.leaves[node+1-self.size];
+                let leaf = &self.leaves[node + 1 - self.size];
                 hasher.update(leaf);
             }
 
@@ -100,10 +99,9 @@ impl Tree {
 
             // Push parent node to updates.
             if node != 0 {
-                self.updates.push_back((node- 1) / 2);
+                self.updates.push_back((node - 1) / 2);
             }
         }
-
 
         // Return new root.
         self.tree[0]
@@ -141,7 +139,7 @@ mod tests {
         assert_eq!(tree.leaves.len(), size);
 
         // Internal tree is double the size of leaves-1.
-        assert_eq!(tree.tree.len(), 2*size-1);
+        assert_eq!(tree.tree.len(), 2 * size - 1);
 
         let zero_root_str = "5310a330e8f970388503c73349d80b45cd764db615f1bced2801dcd4524a2ff4";
         let zero_root: [u8; 32] = hex::decode(zero_root_str).unwrap().try_into().unwrap();
@@ -159,7 +157,7 @@ mod tests {
         let root = tree.root();
         assert_eq!(root, zero_root);
 
-        let new_leaf: Vec<u8> = vec![1,1,1];
+        let new_leaf: Vec<u8> = vec![1, 1, 1];
 
         tree.set_leaf(0, new_leaf);
         let new_root = tree.commit();
@@ -179,8 +177,8 @@ mod tests {
         let root = tree.root();
         assert_eq!(root, zero_root);
 
-        let new_leaf: Vec<u8> = vec![1,1,1];
-        let new_leaf2: Vec<u8> = vec![2,2,2];
+        let new_leaf: Vec<u8> = vec![1, 1, 1];
+        let new_leaf2: Vec<u8> = vec![2, 2, 2];
 
         tree.set_leaf(0, new_leaf);
         tree.set_leaf(3, new_leaf2);
