@@ -1,5 +1,5 @@
 use sha2::{Digest, Sha256};
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::error::Error;
 use std::fmt;
 
@@ -12,6 +12,7 @@ pub struct Tree {
     leaves: Vec<Vec<u8>>,
     tree: Vec<[u8; 32]>,
     updates: VecDeque<usize>,
+    cache: HashMap<Vec<u8>, [u8; 32]>,
 }
 
 #[derive(Debug)]
@@ -37,11 +38,14 @@ impl Tree {
         let tree: Vec<[u8; 32]> = vec![[0; 32]; 2 * size - 1];
         let leaves = vec![vec![1]; size]; // non-empty vector such that we will alter the leaf below.
         let updates: VecDeque<usize> = VecDeque::new();
+        let cache = HashMap::new();
+
         let mut s = Self {
             size,
             leaves,
             tree,
             updates,
+            cache,
         };
 
         // update all leaves.
@@ -76,7 +80,8 @@ impl Tree {
                 continue;
             }
 
-            let mut hasher = Sha256::new();
+            let mut data: Vec<u8> = vec![];
+
             // Leaves start at index size-1;
             if node < self.size - 1 {
                 let c0 = 2 * node + 1;
@@ -84,15 +89,25 @@ impl Tree {
 
                 let child0 = self.tree[c0];
                 let child1 = self.tree[c1];
-                hasher.update(child0);
-                hasher.update(child1);
+                data.extend_from_slice(&child0);
+                data.extend_from_slice(&child1);
             } else {
                 let leaf = &self.leaves[node + 1 - self.size];
-                hasher.update(leaf);
+                data.extend_from_slice(&leaf);
             }
 
-            let hash = hasher.finalize();
-            let hash_array: [u8; 32] = hash.into();
+            // Check cache first.
+            let hash_array = match self.cache.get(&data) {
+                Some(&hash) => hash,
+                _ => {
+                    let mut hasher = Sha256::new();
+                    hasher.update(data.as_slice());
+                    let hash = hasher.finalize();
+                    let hash_array: [u8; 32] = hash.into();
+                    self.cache.insert(data.clone(), hash_array);
+                    hash_array
+                }
+            };
 
             self.tree[node] = hash_array;
             last_update = node;
@@ -115,7 +130,6 @@ impl Tree {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::panic::panic_any;
 
     #[test]
     fn it_works() {
@@ -146,6 +160,15 @@ mod tests {
 
         let root = tree.root();
         assert_eq!(root, zero_root);
+    }
+    #[test]
+    fn large_new() {
+        let size = 1 << 21;
+        let tree = Tree::new(size).unwrap();
+        assert_eq!(tree.leaves.len(), size);
+
+        // Internal tree is double the size of leaves-1.
+        assert_eq!(tree.tree.len(), 2 * size - 1);
     }
 
     #[test]
