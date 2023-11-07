@@ -10,9 +10,9 @@ pub fn add(left: usize, right: usize) -> usize {
 pub struct Tree {
     size: usize,
     leaves: Vec<Vec<u8>>,
-    tree: Vec<[u8; 32]>,
     updates: VecDeque<usize>,
-    cache: HashMap<Vec<u8>, [u8; 32]>,
+    zero_hashes: Vec<[u8; 32]>,
+    node_map: HashMap<usize, [u8; 32]>,
 }
 
 #[derive(Debug)]
@@ -35,30 +35,54 @@ impl Tree {
                 message: "not power of two".to_string(),
             });
         }
-        let tree: Vec<[u8; 32]> = vec![[0; 32]; 2 * size - 1];
-        let leaves = vec![vec![1]; size]; // non-empty vector such that we will alter the leaf below.
-        let updates: VecDeque<usize> = VecDeque::new();
-        let cache = HashMap::new();
 
-        let mut s = Self {
+        // all leaves start out empty.
+        let leaves = vec![vec![]; size];
+        let updates: VecDeque<usize> = VecDeque::new();
+        let zero_hashes = Self::zero_hashes(size);
+        let node_map = HashMap::new();
+
+        let s = Self {
             size,
             leaves,
-            tree,
             updates,
-            cache,
+            zero_hashes,
+            node_map,
         };
 
-        // update all leaves.
-        for i in 0..size {
-            s.set_leaf(i, vec![]);
-        }
-
-        s.commit();
         Ok(s)
     }
 
+    fn zero_hashes(size: usize) -> Vec<[u8; 32]> {
+        // Size is a power of two.
+        let num_levels = (size.ilog2() + 1) as usize;
+        let mut zeros = vec![[0u8; 32]; num_levels];
+
+        for lev in (0..num_levels).rev() {
+            let data: Vec<u8> = {
+                // Leaf node.
+                if lev == num_levels - 1 {
+                    vec![]
+                } else {
+                    let mut child = zeros[lev + 1].to_vec();
+                    child.append(&mut child.clone());
+                    child
+                }
+            };
+
+            let mut hasher = Sha256::new();
+            hasher.update(data.as_slice());
+            let hash = hasher.finalize();
+            let hash_array: [u8; 32] = hash.into();
+
+            zeros[lev] = hash_array;
+        }
+
+        zeros
+    }
+
     pub fn set_leaf(&mut self, i: usize, val: Vec<u8>) {
-        // First check if changes at all.
+        // First check if changes at all. This avoids an expensive hashing.
         let pre = self.leaves[i].clone();
         if pre == val {
             return;
@@ -67,6 +91,16 @@ impl Tree {
         self.leaves[i] = val;
         let node = self.size - 1 + i;
         self.updates.push_back(node);
+    }
+
+    fn get_node(&self, index: usize) -> [u8; 32] {
+        match self.node_map.get(&index) {
+            Some(v) => v.clone(),
+            None => {
+                let level = (index + 1).ilog2() as usize;
+                self.zero_hashes[level]
+            }
+        }
     }
 
     pub fn commit(&mut self) -> [u8; 32] {
@@ -81,14 +115,16 @@ impl Tree {
             }
 
             let mut data: Vec<u8> = vec![];
+            let mut hasher = Sha256::new();
 
             // Leaves start at index size-1;
             if node < self.size - 1 {
                 let c0 = 2 * node + 1;
                 let c1 = 2 * node + 2;
 
-                let child0 = self.tree[c0];
-                let child1 = self.tree[c1];
+                let child0 = self.get_node(c0);
+                let child1 = self.get_node(c1);
+
                 data.extend_from_slice(&child0);
                 data.extend_from_slice(&child1);
             } else {
@@ -96,20 +132,11 @@ impl Tree {
                 data.extend_from_slice(&leaf);
             }
 
-            // Check cache first.
-            let hash_array = match self.cache.get(&data) {
-                Some(&hash) => hash,
-                _ => {
-                    let mut hasher = Sha256::new();
-                    hasher.update(data.as_slice());
-                    let hash = hasher.finalize();
-                    let hash_array: [u8; 32] = hash.into();
-                    self.cache.insert(data.clone(), hash_array);
-                    hash_array
-                }
-            };
+            hasher.update(data.as_slice());
+            let hash = hasher.finalize();
+            let hash_array: [u8; 32] = hash.into();
 
-            self.tree[node] = hash_array;
+            self.node_map.insert(node, hash_array);
             last_update = node;
 
             // Push parent node to updates.
@@ -119,11 +146,11 @@ impl Tree {
         }
 
         // Return new root.
-        self.tree[0]
+        self.get_node(0)
     }
 
     pub fn root(&self) -> [u8; 32] {
-        self.tree[0]
+        self.get_node(0)
     }
 }
 
@@ -152,23 +179,18 @@ mod tests {
         let tree = Tree::new(size).unwrap();
         assert_eq!(tree.leaves.len(), size);
 
-        // Internal tree is double the size of leaves-1.
-        assert_eq!(tree.tree.len(), 2 * size - 1);
-
         let zero_root_str = "5310a330e8f970388503c73349d80b45cd764db615f1bced2801dcd4524a2ff4";
         let zero_root: [u8; 32] = hex::decode(zero_root_str).unwrap().try_into().unwrap();
 
         let root = tree.root();
         assert_eq!(root, zero_root);
+        assert_eq!(root, tree.zero_hashes[0]);
     }
     #[test]
     fn large_new() {
-        let size = 1 << 21;
+        let size = 1 << 24;
         let tree = Tree::new(size).unwrap();
         assert_eq!(tree.leaves.len(), size);
-
-        // Internal tree is double the size of leaves-1.
-        assert_eq!(tree.tree.len(), 2 * size - 1);
     }
 
     #[test]
