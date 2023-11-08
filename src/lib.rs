@@ -9,6 +9,7 @@ pub fn add(left: usize, right: usize) -> usize {
 
 pub struct Tree {
     size: usize,
+    dirty: bool,
     leaves: Vec<Vec<u8>>,
     updates: VecDeque<usize>,
     zero_hashes: Vec<[u8; 32]>,
@@ -28,6 +29,18 @@ impl fmt::Display for SizeError {
 
 impl Error for SizeError {}
 
+#[derive(Debug)]
+pub struct InvalidValueError {
+    message: String,
+}
+
+impl fmt::Display for InvalidValueError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.message)
+    }
+}
+impl Error for InvalidValueError {}
+
 impl Tree {
     pub fn new(size: usize) -> Result<Self, SizeError> {
         if !usize::is_power_of_two(size) {
@@ -44,6 +57,7 @@ impl Tree {
 
         let s = Self {
             size,
+            dirty: true,
             leaves,
             updates,
             zero_hashes,
@@ -91,6 +105,7 @@ impl Tree {
         self.leaves[i] = val;
         let node = self.size - 1 + i;
         self.updates.push_back(node);
+        self.dirty = true;
     }
 
     fn get_node(&self, index: usize) -> [u8; 32] {
@@ -145,12 +160,46 @@ impl Tree {
             }
         }
 
+        self.dirty = false;
+
         // Return new root.
         self.get_node(0)
     }
 
     pub fn root(&self) -> [u8; 32] {
         self.get_node(0)
+    }
+
+    pub fn proof(&self, i: usize, val: Vec<u8>) -> Result<Vec<[u8; 32]>, InvalidValueError> {
+        let pre = self.leaves[i].clone();
+        if val != pre {
+            return Err(InvalidValueError {
+                message: "leaf value mismatch".to_string(),
+            });
+        }
+
+        if self.dirty {
+            return Err(InvalidValueError {
+                message: "tree dirty, need commit".to_string(),
+            });
+        }
+
+        let mut proof: Vec<[u8; 32]> = vec![];
+
+        let mut node = self.size - 1 + i;
+        while node > 0 {
+            let sibling_index = match node % 2 {
+                0 => node - 1,
+                _ => node + 1,
+            };
+
+            let sibling = self.get_node(sibling_index);
+            proof.push(sibling);
+
+            node = (node - 1) / 2;
+        }
+
+        Ok(proof)
     }
 }
 
@@ -233,5 +282,49 @@ mod tests {
         let exp_root: [u8; 32] = hex::decode(exp_root_str).unwrap().try_into().unwrap();
 
         assert_eq!(new_root, exp_root);
+    }
+    #[test]
+    fn proof() {
+        let size = 4;
+        let mut tree = Tree::new(size).unwrap();
+
+        let new_leaf: Vec<u8> = vec![1];
+        let new_leaf2: Vec<u8> = vec![2];
+
+        tree.set_leaf(0, new_leaf.clone());
+        tree.set_leaf(3, new_leaf2.clone());
+        let new_root = tree.commit();
+
+        let exp_root_str = "8a541763389ec48a3243be754f488605d58302f7c7a5a8062cd06cc1eb22c02c";
+        let exp_root: [u8; 32] = hex::decode(exp_root_str).unwrap().try_into().unwrap();
+        assert_eq!(new_root, exp_root);
+
+        let exp_proof_str = vec![
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "00b1f83e1e9716fc95bb15a9ce5307ec679af9c45d9e29c8e1a2de42993a7a16",
+        ];
+
+        let mut exp_proof: Vec<[u8; 32]> = vec![];
+        for x in exp_proof_str {
+            let h = hex::decode(x).unwrap();
+            exp_proof.push(h.try_into().unwrap());
+        }
+
+        let proof = tree.proof(0, new_leaf).unwrap();
+        assert_eq!(exp_proof, proof);
+
+        let exp_proof2_str = vec![
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "0cb82415a7954f417a53ff5728d138e2139ab4ecfd5c824cb3ce378875324dd2",
+        ];
+
+        let mut exp_proof2: Vec<[u8; 32]> = vec![];
+        for x in exp_proof2_str {
+            let h = hex::decode(x).unwrap();
+            exp_proof2.push(h.try_into().unwrap());
+        }
+
+        let proof2 = tree.proof(3, new_leaf2).unwrap();
+        assert_eq!(exp_proof2, proof2);
     }
 }
