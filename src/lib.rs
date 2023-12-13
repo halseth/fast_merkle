@@ -7,6 +7,7 @@ pub fn add(left: usize, right: usize) -> usize {
     left + right
 }
 
+#[derive(Clone, Debug)]
 pub struct Tree {
     size: usize,
     dirty: bool,
