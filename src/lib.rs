@@ -43,6 +43,10 @@ impl Error for InvalidValueError {}
 
 impl Tree {
     pub fn new(size: usize) -> Result<Self, SizeError> {
+        Self::new_with_default(size, vec![])
+    }
+
+    pub fn new_with_default(size: usize, zero_val: Vec<u8>) -> Result<Self, SizeError> {
         if !usize::is_power_of_two(size) {
             return Err(SizeError {
                 message: "not power of two".to_string(),
@@ -50,9 +54,9 @@ impl Tree {
         }
 
         // all leaves start out empty.
-        let leaves = vec![vec![]; size];
-        let updates: VecDeque<usize> = VecDeque::new();
-        let zero_hashes = Self::zero_hashes(size);
+        let leaves = vec![zero_val.clone(); size];
+        let updates = VecDeque::new();
+        let zero_hashes = Self::zero_hashes(size, zero_val);
         let node_map = HashMap::new();
 
         let s = Self {
@@ -67,7 +71,7 @@ impl Tree {
         Ok(s)
     }
 
-    fn zero_hashes(size: usize) -> Vec<[u8; 32]> {
+    fn zero_hashes(size: usize, zero_val: Vec<u8>) -> Vec<[u8; 32]> {
         // Size is a power of two.
         let num_levels = (size.ilog2() + 1) as usize;
         let mut zeros = vec![[0u8; 32]; num_levels];
@@ -76,7 +80,7 @@ impl Tree {
             let data: Vec<u8> = {
                 // Leaf node.
                 if lev == num_levels - 1 {
-                    vec![]
+                    zero_val.clone()
                 } else {
                     let mut child = zeros[lev + 1].to_vec();
                     child.append(&mut child.clone());
@@ -102,7 +106,7 @@ impl Tree {
             return;
         }
 
-        self.leaves[i] = val;
+        self.leaves[i] = val.clone();
         let node = self.size - 1 + i;
         self.updates.push_back(node);
         self.dirty = true;
@@ -234,6 +238,30 @@ mod tests {
         let root = tree.root();
         assert_eq!(root, zero_root);
         assert_eq!(root, tree.zero_hashes[0]);
+    }
+
+    #[test]
+    fn new_with_default() {
+        let size = 4;
+        let mut tree = Tree::new_with_default(size, vec![0]).unwrap();
+        assert_eq!(tree.leaves.len(), size);
+
+        let zero_root_str = "f8d3ccccb4c4e6d5e2fefbff8c68aaf58d56528e3b6d8ebf07b4210cefe6a1f1";
+        let zero_root: [u8; 32] = hex::decode(zero_root_str).unwrap().try_into().unwrap();
+
+        let root = tree.root();
+        assert_eq!(root, zero_root);
+        assert_eq!(root, tree.zero_hashes[0]);
+
+        // Set empty value.
+        let new_leaf: Vec<u8> = vec![];
+        tree.set_leaf(0, new_leaf);
+        let new_root = tree.commit();
+
+        let new_exp_root_str = "64fe74bdcb7067d34f436ad40d8fe7918d20f4d46cb62e66e15b8b499bcf72a1";
+        let new_exp_root: [u8; 32] = hex::decode(new_exp_root_str).unwrap().try_into().unwrap();
+
+        assert_eq!(new_root, new_exp_root);
     }
     #[test]
     fn large_new() {
