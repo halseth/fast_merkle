@@ -99,6 +99,10 @@ impl Tree {
         zeros
     }
 
+    pub fn get_leaf(&mut self, i: usize) -> Vec<u8> {
+        self.leaves[i].clone()
+    }
+
     pub fn set_leaf(&mut self, i: usize, val: Vec<u8>) {
         // First check if changes at all. This avoids an expensive hashing.
         let pre = self.leaves[i].clone();
