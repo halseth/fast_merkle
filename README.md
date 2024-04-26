@@ -1,2 +1,2 @@
 # fast_merkle
-Fast mutable merkle trees
+Fast mutable merkle trees in Rust.
